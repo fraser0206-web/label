@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Label Print App - Avery L7994 (4 x 6x4" Labels)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --ink: #1c1c1c;
+    --paper: #ffffff;
+    --accent: #2f5233;
+    --muted: #8a8a8a;
+    --line: #d8d8d8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #ececec;
+    color: var(--ink);
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  .layout {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* --- A4 sheet preview --- */
+  .sheet-wrap { flex-shrink: 0; }
+  .sheet {
+    background: var(--paper);
+    width: 420px;
+    height: 594px; /* A4 ratio 1:1.414 */
+    box-shadow: 0 2px 14px rgba(0,0,0,0.18);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    padding: 2px;
+  }
+  .quad {
+    background: #fafafa;
+    border: 1.5px dashed var(--line);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .quad:hover { border-color: var(--accent); }
+  .quad.filled { border-style: solid; }
+  .quad.dragover { border-color: var(--accent); background: #eef4ef; }
+  .quad img, .quad canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .quad .placeholder {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 10px;
+    pointer-events: none;
+  }
+  .quad .placeholder .num {
+    display: block;
+    font-size: 22px;
+    font-weight: 700;
+    color: #c9c9c9;
+    margin-bottom: 4px;
+  }
+  .quad .remove-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+  }
+  .quad.filled .remove-btn { display: block; }
+  .quad input[type=file] { display: none; }
+
+  /* --- side panel --- */
+  .panel {
+    flex: 1;
+    min-width: 260px;
+    max-width: 380px;
+  }
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+  .card p { font-size: 13px; line-height: 1.5; margin: 0 0 8px; }
+  .card ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+
+  button.primary {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button.primary:hover { background: #24402a; }
+  button.secondary {
+    width: 100%;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 10px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  button.secondary:hover { border-color: var(--accent); }
+
+  .file-link {
+    display: block;
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    margin-top: 6px;
+    word-break: break-all;
+  }
+
+  /* --- print --- */
+  #printSheet { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    #printSheet, #printSheet * { visibility: visible; }
+    #printSheet {
+      display: grid !important;
+      position: absolute;
+      top: 0; left: 0;
+      width: 210mm;
+      height: 297mm;
+      margin: 0;
+      padding: 0;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 0;
+    }
+    #printSheet .pquad {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #printSheet img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    @page { size: A4; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Label Print App</h1>
+<div class="sub">A4 sheet split into 4 quarters — matches Avery L7994 layout (4 &times; 6&quot;&times;4&quot; labels per sheet). Click or drag a JPEG, PNG or PDF into a quadrant.</div>
+
+<div class="layout">
+  <div class="sheet-wrap">
+    <div class="sheet" id="sheet">
+      <div class="quad" data-idx="0">
+        <div class="placeholder"><span class="num">1</span>Click or drop label<br>(top left)</div>
+        <button class="remove-btn" title="Remove">&times;</button>
+        <input type="file" accept="image/jpeg,image/png,application/pdf">
+      </div>
+      <div class="quad" data-idx="1">
+        <div class="placeholder"><span class="num">2</span>Click or drop label<br>(top right)</div>
+        <button class="remove-btn" title="Remove">&times;</button>
+        <input type="file" accept="image/jpeg,image/png,application/pdf">
+      </div>
+      <div class="quad" data-idx="2">
+        <div class="placeholder"><span class="num">3</span>Click or drop label<br>(bottom left)</div>
+        <button class="remove-btn" title="Remove">&times;</button>
+        <input type="file" accept="image/jpeg,image/png,application/pdf">
+      </div>
+      <div class="quad" data-idx="3">
+        <div class="placeholder"><span class="num">4</span>Click or drop label<br>(bottom right)</div>
+        <button class="remove-btn" title="Remove">&times;</button>
+        <input type="file" accept="image/jpeg,image/png,application/pdf">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="card">
+      <h2>Print</h2>
+      <p>Fills whichever quadrants have a label. Empty quadrants print blank. Set your printer to A4, 100% scale, no margins.</p>
+      <button class="primary" id="printBtn">Print A4 Sheet</button>
+      <button class="secondary" id="clearBtn">Clear All Quadrants</button>
+    </div>
+
+    <div class="card">
+      <h2>Template</h2>
+      <p>Your uploaded Avery template file is available here for reference alongside this tool:</p>
+      <a class="file-link" href="#" id="templateNote">Avery_L7994_WordTemplate.doc</a>
+    </div>
+
+    <div class="card">
+      <h2>Tips</h2>
+      <ul>
+        <li>PDFs render their first page only.</li>
+        <li>Images/PDFs are scaled to fit within each quadrant, keeping proportions.</li>
+        <li>Use the &times; button on a filled quadrant to remove and replace it.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden mirror structure used only for printing -->
+<div id="printSheet">
+  <div class="pquad" data-idx="0"></div>
+  <div class="pquad" data-idx="1"></div>
+  <div class="pquad" data-idx="2"></div>
+  <div class="pquad" data-idx="3"></div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const quads = document.querySelectorAll('.quad');
+const printQuads = document.querySelectorAll('.pquad');
+const labelData = [null, null, null, null]; // stores dataURL per quadrant
+
+async function handleFile(file, idx) {
+  if (!file) return;
+  if (file.type === 'application/pdf') {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 3 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    setLabel(idx, canvas.toDataURL('image/png'));
+  } else if (file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = e => setLabel(idx, e.target.result);
+    reader.readAsDataURL(file);
+  } else {
+    alert('Please use a JPEG, PNG or PDF file.');
+  }
+}
+
+function setLabel(idx, dataUrl) {
+  labelData[idx] = dataUrl;
+  const quad = quads[idx];
+  quad.classList.add('filled');
+  quad.querySelector('.placeholder').style.display = 'none';
+  let img = quad.querySelector('img');
+  if (!img) {
+    img = document.createElement('img');
+    quad.insertBefore(img, quad.querySelector('.remove-btn'));
+  }
+  img.src = dataUrl;
+
+  printQuads[idx].innerHTML = `<img src="${dataUrl}">`;
+}
+
+function clearLabel(idx) {
+  labelData[idx] = null;
+  const quad = quads[idx];
+  quad.classList.remove('filled');
+  quad.querySelector('.placeholder').style.display = '';
+  const img = quad.querySelector('img');
+  if (img) img.remove();
+  quad.querySelector('input[type=file]').value = '';
+  printQuads[idx].innerHTML = '';
+}
+
+quads.forEach((quad, idx) => {
+  const input = quad.querySelector('input[type=file]');
+  const removeBtn = quad.querySelector('.remove-btn');
+
+  quad.addEventListener('click', (e) => {
+    if (e.target === removeBtn) return;
+    input.click();
+  });
+
+  input.addEventListener('change', () => handleFile(input.files[0], idx));
+
+  removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearLabel(idx);
+  });
+
+  quad.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    quad.classList.add('dragover');
+  });
+  quad.addEventListener('dragleave', () => quad.classList.remove('dragover'));
+  quad.addEventListener('drop', (e) => {
+    e.preventDefault();
+    quad.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    handleFile(file, idx);
+  });
+});
+
+document.getElementById('printBtn').addEventListener('click', () => window.print());
+document.getElementById('clearBtn').addEventListener('click', () => {
+  for (let i = 0; i < 4; i++) clearLabel(i);
+});
+document.getElementById('templateNote').addEventListener('click', (e) => {
+  e.preventDefault();
+  alert('Reference the "Avery_L7994_WordTemplate.doc" file you uploaded for exact Avery margin specs when calibrating your printer.');
+});
+</script>
+
+</body>
+</html>
